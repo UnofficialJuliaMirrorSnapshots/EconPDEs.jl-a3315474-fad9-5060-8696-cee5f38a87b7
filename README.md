@@ -1,10 +1,11 @@
 [![Build Status](https://travis-ci.org/matthieugomez/EconPDEs.jl.svg?branch=master)](https://travis-ci.org/matthieugomez/EconPDEs.jl)
+[![Coverage Status](https://coveralls.io/repos/matthieugomez/EconPDEs.jl/badge.svg?branch=master)](https://coveralls.io/r/matthieugomez/EconPDEs.jl?branch=master)
 
 
-This package provides the function `pdesolve`that solves (system of) nonlinear ODEs/PDEs arising in economic models.
+This package provides the function `pdesolve`that solves (system of) nonlinear ODEs/PDEs arising in economic models (i.e. elliptic PDEs)
 
-- It is fast: the underlying algorithm has a quadratic rate of convergence around the solution.
-- It is robust: the underlying algorithm is based on a combination of upwinding and non-linear time stepping (more details [here](https://github.com/matthieugomez/EconPDEs.jl/blob/master/src/details.pdf))
+- It is super fast: the underlying algorithm has a quadratic rate of convergence around the solution.
+- It is robust: the underlying algorithm is based on a combination of upwinding and non-linear time stepping (more details [here](https://github.com/matthieugomez/EconPDEs.jl/blob/master/examples/details.pdf))
 - It is simple-to-use: solve PDEs in less than 10 lines of codes
 
 
@@ -21,16 +22,16 @@ The [examples folder](https://github.com/matthieugomez/EconPDEs.jl/tree/master/e
 
 # A Simple Example
 
-For instance, to solve the PDE giving the price-dividend ratio in the Long Run Risk model:
+For instance, to solve the PDE giving the price-dividend ratio in the Long Run Risk model with time-varying drift:
 <img src="img/by.png">
 
 ```julia
 using EconPDEs
 # define state grid
-state = OrderedDict(:μ => range(-0.05, stop = 0.1, length = 1000))
+state = OrderedDict(:μ => range(-0.05, stop = 0.1, length = 500))
 
 # define initial guess
-y0 = OrderedDict(:V => ones(1000))
+y0 = OrderedDict(:V => ones(500))
 
 # define pde function that specifies PDE to solve. The function takes two arguments:
 # 1. state variable `state`, a named tuple. 
@@ -75,7 +76,7 @@ When solving a PDE using a finite scheme approach, one needs to specify the valu
 
 # Time Iteration
 To save PDEs with a time dimension, use `pdesolve(f, state, y0, ts)`  where `ts` is a vector of time and `y_0` is the solution at time `ts[1]`. See [ArbitrageHoldingCosts](https://github.com/matthieugomez/EconPDEs.jl/tree/master/examples/AssetPricing/ArbitrageHoldingCosts.jl) for an example.
-ArbitrageHoldingCosts.jl
+
 # Installation
 
 To install the package

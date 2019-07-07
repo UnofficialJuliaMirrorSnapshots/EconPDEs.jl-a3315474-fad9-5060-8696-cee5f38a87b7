@@ -1,17 +1,11 @@
 module EconPDEs
-using LinearAlgebra
-using NLsolve
-using MINPACK
-using OrderedCollections
-
+using LinearAlgebra, SparseArrays, NLsolve, OrderedCollections, BlockBandedMatrices, SparseDiffTools, DiffEqDiffTools
 ##############################################################################
 ##
 ## Load files
 ##
 ##############################################################################
 include("finiteschemesolve.jl")
-include("stategrid.jl")
-include("derive.jl")
 include("pdesolve.jl")
 
 ##############################################################################
@@ -19,8 +13,7 @@ include("pdesolve.jl")
 ## Exported methods and types 
 ##
 ##############################################################################
-export finiteschemesolve,
-pdesolve,
-simulate,
-OrderedDict
+export OrderedDict,
+finiteschemesolve,
+pdesolve
 end
