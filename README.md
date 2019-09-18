@@ -2,12 +2,11 @@
 [![Coverage Status](https://coveralls.io/repos/matthieugomez/EconPDEs.jl/badge.svg?branch=master)](https://coveralls.io/r/matthieugomez/EconPDEs.jl?branch=master)
 
 
-This package provides the function `pdesolve`that solves (system of) nonlinear ODEs/PDEs arising in economic models (i.e. elliptic PDEs)
+This package provides the function `pdesolve`that solves (system of) nonlinear ODEs/PDEs arising in economic models (i.e. parabolic/elliptic PDEs)
 
-- It is super fast: the underlying algorithm has a quadratic rate of convergence around the solution.
-- It is robust: the underlying algorithm is based on a combination of upwinding and non-linear time stepping (more details [here](https://github.com/matthieugomez/EconPDEs.jl/blob/master/examples/details.pdf))
-- It is simple-to-use: solve PDEs in less than 10 lines of codes
-
+- It is robust: the underlying algorithm is based on a combination of upwinding and *fully* implicit time stepping (more details [here](https://github.com/matthieugomez/EconPDEs.jl/blob/master/examples/details.pdf))
+- It is fast: implicit time-steps are solved using sparse Jacobians
+- It is simple-to-use: solve PDEs in 10 lines of codes
 
 # Examples
 
@@ -23,59 +22,62 @@ The [examples folder](https://github.com/matthieugomez/EconPDEs.jl/tree/master/e
 # A Simple Example
 
 For instance, to solve the PDE giving the price-dividend ratio in the Long Run Risk model with time-varying drift:
+<!-- 
+1 - \rho V + (1 - \frac{1}{\psi})(\mu - \frac{1}{2}\gamma \vartheta)V + \theta_\mu(\overline{\mu} - \mu) \partial_\mu V + \frac{1}{2}\frac{\frac{1}{\psi}-\gamma}{1-\frac{1}{\psi}}\nu_\mu^2 \vartheta \frac{(\partial_\mu V)^2}{V} + \frac{1}{2}\nu_\mu^2 \vartheta \partial_{\mu\mu}V  + \partial_t V  = 0
+-->
 <img src="img/by.png">
 
 ```julia
 using EconPDEs
-# define state grid
-state = OrderedDict(:μ => range(-0.05, stop = 0.1, length = 500))
 
-# define initial guess
+# Define a discretized state space
+# An OrderedDict in which each key corresponds to a dimension of the state space.
+stategrid = OrderedDict(:μ => range(-0.05, stop = 0.1, length = 500))
+
+# Define an initial guess for the value functions
+# An OrderedDict in which each key corresponds to a value function to solve for, 
+# specified as an array with the same dimension as the state space
 y0 = OrderedDict(:V => ones(500))
 
-# define pde function that specifies PDE to solve. The function takes two arguments:
-# 1. state variable `state`, a named tuple. 
-# The state can be accessed with `state.x` where `x` denotes the name of the state variable.
-# 2. current solution `sol`, a named tuple. 
-# The current solution at the current state can be accessed with `sol.y` where `y` denotes the name of initial guess. 
-# Its derivative can be accessed with `sol.yx` where `x` denotes the name of state variable.
-# Its second derivative can be accessed with `sol.yxx`,
-# It returns two outputs
-# 1. a tuple with the value of PDE at current solution and current state 
-# 2. a tuple with drift of state variable, used for upwinding 
-function f(state, sol)
+# Define a function that encodes the PDE. 
+# The function takes three arguments:
+# 1. A named tuple giving the current value of the state. 
+# 2. A named tuple giving the value function(s) (as well as its derivatives)
+# at the current value of the state. 
+# 3. (Optional) Current time t
+# It returns two tuples:
+# 1. a tuple with the opposite of the time derivative of each value function
+# 2. a tuple with the drift of each state variable (internally used for upwinding)
+function f(state::NamedTuple, sol::NamedTuple)
 	μbar = 0.018 ; ϑ = 0.00073 ; θμ = 0.252 ; νμ = 0.528 ; ρ = 0.025 ; ψ = 1.5 ; γ = 7.5
-	Vt = 1 / sol.V - ρ + (1 - 1 / ψ) * (state.μ - 0.5 * γ * ϑ) + θμ * (μbar - state.μ) * sol.Vμ / sol.V +
-	0.5 * νμ^2 * ϑ * sol.Vμμ / sol.V + 0.5 * (1 / ψ - γ) / (1- 1 / ψ) * νμ^2 *  ϑ * sol.Vμ^2/sol.V^2
+	Vt = 1  - ρ * sol.V + (1 - 1 / ψ) * (state.μ - 0.5 * γ * ϑ) * sol.V + θμ * (μbar - state.μ) * sol.Vμ +
+	0.5 * νμ^2 * ϑ * sol.Vμμ  + 0.5 * (1 / ψ - γ) / (1- 1 / ψ) * νμ^2 *  ϑ * sol.Vμ^2/sol.V
 	(Vt,), (θμ * (μbar - state.μ),)
 end
 
-# the function `pdesolve` takes three arguments: (i) a function encoding the ode / pde (ii) a state grid corresponding to a discretized version of the state space (iii) an initial guess for the array(s) to solve for. 
-pdesolve(f, state, y0)
+# The function `pdesolve` takes four arguments:
+# 1. the function encoding the PDE
+# 2. the discretized state space
+# 3. the initial guess for the value functions
+# 4. a time grid with decreasing values 
+@time pdesolve(f, stategrid, y0, range(1000, stop = 0, length = 100))
+#> 0.220390 seconds (3.07 M allocations: 219.883 MiB, 18.28% gc time)
+
+# To solve directly for the stationary solution, 
+# i.e. the solution of the PDE with ∂tV = 0,
+# simply omit the time grid
+@time pdesolve(f, stategrid, y0)
+#>  0.018544 seconds (301.91 k allocations: 20.860 MiB)
 ```
 
 More complicated ODEs / PDES (including PDE with two state variables or systems of multiple PDEs) can be found in the `examples` folder. 
 
 
+
 # Boundary Conditions
-When solving a PDE using a finite scheme approach, one needs to specify the value of the solution *outside* the grid ("ghost node") to construct the second derivative and, in some cases, the first derivative *at* the boundary. I go through several cases for lower boundaries (upper boundaries are similar):
+When solving a PDE using a finite scheme approach, one needs to specify the value of the solution *outside* the grid ("ghost node") to construct the second derivative and, in some cases, the first derivative *at* the boundary. 
 
-1. First Case: *at the lower boundary of the grid, the state variable has a positive drift and positive volatility.*
-
-	This typically happens in models where the state space is unbounded (see Habit, Long Run Risk, and Disaster models). Because the PDE needs to be solved on a grid, one needs to impose reflecting boundaries, i.e. that the first derivative of the value function is null at the border. In term of finite difference scheme, this means that the value of the function outside the grid is equal to the value *at* the boundary. This is the default boundary condition used by `pdesolve`.
-
-2. Second Case: *at the lower boundary of the grid, the state variable has a positive drift and zero volatility.*
-
-	This typically happens in heterogeneous agent models such as GarleanuPanageas and DiTella models. Because the volatility is zero at the boundary, the second derivative does not appear at the boundary. Because of upwinding, the first derivative does not use the value of the function outside the grid either. Therefore, there is no need to specify the value of the function outside the grid.
-
-3. Third case: *at the lower boundary of the grid, the state variable must be constrained to have a nonnegative drift.*
-	
-	This typically happens in consumption / saving models with borrowing constraint. Typically, the agent would like to consume but there is an exogeneous constraint on how low his wealth can be. In this case, manually specify the value of the first derivative to be such that the agent chooses to stay in the state space. See WangWangYang model or AchdouHanLasryLionsMoll in the example folder.
-
-	4. Fourth case. For more complicated models, the boundary condition may not fall into one of these cases. In this case, specify particular values for the derivative at the boundaries using the `bc` option (see BoltonChenWang model in the example folder).
-
-# Time Iteration
-To save PDEs with a time dimension, use `pdesolve(f, state, y0, ts)`  where `ts` is a vector of time and `y_0` is the solution at time `ts[1]`. See [ArbitrageHoldingCosts](https://github.com/matthieugomez/EconPDEs.jl/tree/master/examples/AssetPricing/ArbitrageHoldingCosts.jl) for an example.
+By default, the values at the ghost node is assumed to equal the value at the boundary node (reflecting boundaries). Specify different values for values at the ghost node using the option `bc` (see [BoltonChenWang.jl](https://github.com/matthieugomez/EconPDEs.jl/blob/master/examples/InvestmentProblem/BoltonChenWang.jl) for an example).
 
 # Installation
 
